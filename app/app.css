@@ -7,9 +7,26 @@
 
 html,
 body {
-  @apply bg-white dark:bg-gray-950;
+  @apply bg-white text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100;
+  @apply min-h-screen;
 
   @media (prefers-color-scheme: dark) {
     color-scheme: dark;
   }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
 }

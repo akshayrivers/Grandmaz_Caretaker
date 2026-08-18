@@ -8,6 +8,7 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import { AuthProvider } from "~/contexts/auth";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -29,11 +30,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Grandma's Caretaker</title>
         <Meta />
         <Links />
       </head>
       <body>
-        {children}
+        <AuthProvider>{children}</AuthProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -62,11 +64,13 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
+    <main className="flex min-h-screen flex-col items-center justify-center p-4">
+      <h1 className="mb-2 text-6xl font-bold text-gray-900 dark:text-white">
+        {message}
+      </h1>
+      <p className="mb-6 text-lg text-gray-600 dark:text-gray-400">{details}</p>
       {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
+        <pre className="w-full max-w-2xl overflow-x-auto rounded-lg bg-gray-100 p-4 text-sm dark:bg-gray-800">
           <code>{stack}</code>
         </pre>
       )}
