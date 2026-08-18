@@ -4,14 +4,14 @@ import { useAuth } from "~/contexts/auth";
 import { LoadingSpinner } from "~/components/loading-spinner";
 
 export default function Home() {
-  const { user, loading } = useAuth();
+  const { firebaseUser, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && firebaseUser) {
       navigate("/dashboard", { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [firebaseUser, loading, navigate]);
 
   if (loading) return <LoadingSpinner />;
 

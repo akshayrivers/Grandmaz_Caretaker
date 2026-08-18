@@ -27,14 +27,32 @@ export default function HelpPage() {
     if (!idToken) return;
     setLoading(true);
     try {
-      const stored = JSON.parse(
-        localStorage.getItem("linked_devices") || "[]",
-      ) as Array<{ deviceId: string }>;
+      let deviceIds: string[] = [];
+
+      try {
+        const backendDevices = await api.getMyDevices(idToken);
+        if (backendDevices && backendDevices.length > 0) {
+          deviceIds = backendDevices.map((d) => d.deviceId || d.id);
+          const toStore = backendDevices.map((d) => ({
+            deviceId: d.deviceId || d.id,
+            displayName: d.displayName || d.deviceId,
+            role: d.caretakerRole || "primary",
+          }));
+          localStorage.setItem("linked_devices", JSON.stringify(toStore));
+        }
+      } catch {}
+
+      if (deviceIds.length === 0) {
+        const stored = JSON.parse(
+          localStorage.getItem("linked_devices") || "[]",
+        ) as Array<{ deviceId: string }>;
+        deviceIds = stored.map((d) => d.deviceId);
+      }
 
       const all: HelpRequest[] = [];
-      for (const d of stored) {
+      for (const id of deviceIds) {
         try {
-          const reqs = await api.getDeviceHelpRequests(idToken, d.deviceId);
+          const reqs = await api.getDeviceHelpRequests(idToken, id);
           all.push(...reqs);
         } catch {}
       }

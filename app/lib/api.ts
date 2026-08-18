@@ -34,25 +34,31 @@ async function request<T>(
   }
 
   if (res.status === 204) return undefined as T;
-  return res.json();
+  const json = await res.json();
+  if (json && typeof json === "object" && "success" in json && "data" in json) {
+    return json.data as T;
+  }
+  return json as T;
 }
 
 export const api = {
   // Auth
   verify: (idToken: string) =>
-    request<{ user: import("./types").User }>("/api/auth/verify", {
+    request<import("./types").User>("/api/auth/verify", {
       method: "POST",
       body: JSON.stringify({ idToken }),
     }),
 
   acceptInvitation: (idToken: string, invitationToken: string) =>
-    request<{ user: import("./types").User; device: import("./types").Device }>(
-      "/api/auth/accept-invitation",
-      {
-        method: "POST",
-        body: JSON.stringify({ idToken, invitationToken }),
-      },
-    ),
+    request<{
+      success: boolean;
+      message: string;
+      user: import("./types").User;
+      deviceId: string;
+    }>("/api/auth/accept-invitation", {
+      method: "POST",
+      body: JSON.stringify({ idToken, invitationToken }),
+    }),
 
   getMe: (idToken: string) =>
     request<import("./types").User>("/api/auth/me", {}, idToken),
@@ -72,6 +78,9 @@ export const api = {
     ),
 
   // Devices
+  getMyDevices: (idToken: string) =>
+    request<import("./types").DeviceWithState[]>("/api/devices", {}, idToken),
+
   getDeviceCaretakers: (idToken: string, deviceId: string) =>
     request<import("./types").DeviceCaretaker[]>(
       `/api/caretakers/device/${deviceId}`,

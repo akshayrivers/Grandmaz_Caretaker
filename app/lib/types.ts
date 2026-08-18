@@ -88,5 +88,23 @@ export interface Invitation {
   email: string;
   deviceId: string;
   expiresAt: string;
-  accepted: boolean;
+  accepted?: boolean;
+}
+
+export interface DeviceWithState {
+  id: string;
+  deviceId: string;
+  deviceUuid?: string;
+  displayName: string;
+  publicKey?: string;
+  deviceMetadata?: Record<string, unknown> | null;
+  isVerified: boolean;
+  status: string;
+  lastActiveAt: string | null;
+  batteryLevel: number | null;
+  batteryStatus: string | null;
+  wifiSsid: string | null;
+  caretakerRole: string;
+  createdAt?: string;
+  updatedAt?: string;
 }

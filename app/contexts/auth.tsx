@@ -45,10 +45,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = await fbUser.getIdToken();
       setIdToken(token);
-      const { user: profile } = await api.verify(token);
-      setUser(profile);
+      try {
+        const profile = await api.verify(token);
+        setUser(profile);
+      } catch {
+        setUser(null);
+      }
     } catch (err) {
-      console.error("Failed to sync user:", err);
+      console.error("Failed to get ID token:", err);
       setUser(null);
     } finally {
       setLoading(false);
@@ -75,11 +79,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshUser = async () => {
-    if (firebaseUser) {
+    if (!firebaseUser) return;
+    try {
       const token = await firebaseUser.getIdToken(true);
       setIdToken(token);
-      const { user: profile } = await api.verify(token);
-      setUser(profile);
+      try {
+        const profile = await api.verify(token);
+        setUser(profile);
+      } catch {
+        setUser(null);
+      }
+    } catch {
+      // token refresh failed
     }
   };
 

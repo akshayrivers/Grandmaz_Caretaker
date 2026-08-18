@@ -2,22 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useAuth } from "~/contexts/auth";
 import { api } from "~/lib/api";
-import type { DeviceCaretaker } from "~/lib/types";
 import { StatusBadge } from "~/components/status-badge";
 import { LoadingSpinner } from "~/components/loading-spinner";
-import { Monitor, Battery, Wifi, Clock, AlertCircle, UserPlus } from "lucide-react";
-
-interface DeviceWithState {
-  deviceId: string;
-  displayName: string;
-  status: string;
-  isVerified: boolean;
-  lastActiveAt: string | null;
-  batteryLevel: number | null;
-  batteryStatus: string | null;
-  wifiSsid: string | null;
-  caretakerRole: string;
-}
+import { Monitor, Battery, Wifi, Clock } from "lucide-react";
+import type { DeviceWithState } from "~/lib/types";
 
 export default function DashboardHome() {
   const { idToken } = useAuth();
@@ -33,32 +21,26 @@ export default function DashboardHome() {
   async function loadDevices() {
     if (!idToken) return;
     try {
-      const profile = await api.getUserProfile(idToken);
-      const deviceId = profile.role;
+      // 1. Try fetching directly from backend
+      try {
+        const backendDevices = await api.getMyDevices(idToken);
+        if (backendDevices && backendDevices.length > 0) {
+          setDevices(backendDevices);
+          // Sync to localStorage
+          const toStore = backendDevices.map((d) => ({
+            deviceId: d.deviceId || d.id,
+            displayName: d.displayName || d.deviceId,
+            role: d.caretakerRole || "primary",
+          }));
+          localStorage.setItem("linked_devices", JSON.stringify(toStore));
+          setLoading(false);
+          return;
+        }
+      } catch (backendErr) {
+        console.warn("Could not fetch devices from backend API, trying localStorage fallback:", backendErr);
+      }
 
-      // We need to get devices for this user. The backend returns caretakers for a device.
-      // Since we don't have a direct "my devices" endpoint, we'll use the user profile
-      // and fetch based on what we can.
-      // For now, we'll fetch devices the user is linked to via the caretakers endpoint.
-      // The backend needs a "my devices" endpoint - until then, we'll try a common pattern.
-
-      // Actually, looking at the backend API, there's no "list my devices" endpoint.
-      // The caretaker link is via device_caretakers. We need the user's devices.
-      // Let's try to get this from the user profile or make a reasonable call.
-      // The GET /api/auth/me returns the user, and the user has a role.
-      // We'll need to fetch devices differently. Let's check if there's an endpoint.
-
-      // Based on the API docs, there's no "list devices for user" endpoint.
-      // We'll need to store the device IDs somewhere or use a workaround.
-      // For now, let's just display what we can from the auth response.
-
-      // Actually, the verify endpoint returns the user which includes their device links.
-      // Let me check... the backend might return device info in the user response.
-      // Since we don't know the exact response shape, let's handle both cases.
-
-      // For now, let's just show a placeholder and let the user navigate.
-      // TODO: The backend needs a GET /api/users/me/devices or similar endpoint.
-      // For the interim, we'll store device IDs in localStorage from invitation acceptance.
+      // 2. Fallback to localStorage
       const storedDevices = JSON.parse(
         localStorage.getItem("linked_devices") || "[]",
       ) as Array<{ deviceId: string; displayName: string; role: string }>;
@@ -75,27 +57,29 @@ export default function DashboardHome() {
         try {
           const state = await api.getDeviceLatestState(idToken, d.deviceId);
           devicesWithState.push({
+            id: d.deviceId,
             deviceId: d.deviceId,
             displayName: d.displayName || d.deviceId,
-            status: "active",
             isVerified: true,
-            lastActiveAt: state?.created_at || null,
-            batteryLevel: state?.battery_level ?? null,
-            batteryStatus: state?.battery_status ?? null,
-            wifiSsid: state?.wifi_ssid ?? null,
-            caretakerRole: d.role,
+            status: "active",
+            lastActiveAt: state?.created_at || (state as any)?.createdAt || null,
+            batteryLevel: state?.battery_level ?? (state as any)?.batteryLevel ?? null,
+            batteryStatus: state?.battery_status ?? (state as any)?.batteryStatus ?? null,
+            wifiSsid: state?.wifi_ssid ?? (state as any)?.wifiSsid ?? null,
+            caretakerRole: d.role || "primary",
           });
         } catch {
           devicesWithState.push({
+            id: d.deviceId,
             deviceId: d.deviceId,
             displayName: d.displayName || d.deviceId,
-            status: "unknown",
             isVerified: false,
+            status: "unknown",
             lastActiveAt: null,
             batteryLevel: null,
             batteryStatus: null,
             wifiSsid: null,
-            caretakerRole: d.role,
+            caretakerRole: d.role || "primary",
           });
         }
       }

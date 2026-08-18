@@ -337,10 +337,10 @@ function CaretakersTab({
             >
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {c.caretaker?.email ?? c.caretaker_id}
+                  {c.caretaker?.email ?? (c as any).email ?? c.caretaker_id}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {c.caretaker?.name ?? "No name"}
+                  {c.caretaker?.name ?? (c as any).name ?? "Caretaker"}
                 </p>
               </div>
               <StatusBadge status={c.role} />

@@ -5,18 +5,18 @@ import { Sidebar } from "~/components/sidebar";
 import { LoadingSpinner } from "~/components/loading-spinner";
 
 export default function Dashboard() {
-  const { user, loading } = useAuth();
+  const { firebaseUser, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !firebaseUser) {
       navigate("/", { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [firebaseUser, loading, navigate]);
 
   if (loading) return <LoadingSpinner />;
 
-  if (!user) return null;
+  if (!firebaseUser) return null;
 
   return (
     <div className="flex h-screen overflow-hidden">
