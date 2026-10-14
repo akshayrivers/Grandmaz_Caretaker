@@ -1,5 +1,5 @@
-import { initializeApp, getApps } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -10,7 +10,30 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+let auth: Auth | null = null;
 
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
+export const isBrowser = typeof window !== "undefined";
+
+/**
+ * Lazily initialises Firebase Auth. Browser-only: calling this during SSR throws,
+ * so only use it inside effects and event handlers.
+ */
+export function getFirebaseAuth(): Auth {
+  if (!isBrowser) {
+    throw new Error("Firebase Auth is only available in the browser");
+  }
+  if (!auth) {
+    const app: FirebaseApp =
+      getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]!;
+    auth = getAuth(app);
+  }
+  return auth;
+}
+
+export function createGoogleProvider() {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  return provider;
+}
+
+export const EMAIL_FOR_SIGN_IN_KEY = "emailForSignIn";
