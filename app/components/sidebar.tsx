@@ -6,6 +6,7 @@ import {
   ScrollText,
   UserRound,
   House,
+  Siren,
   LogOut,
   ChevronLeft,
   Menu,
@@ -20,6 +21,7 @@ const navItems = [
   { to: "/dashboard/audit", icon: ScrollText, label: "Audit Logs" },
   { to: "/dashboard/profile", icon: UserRound, label: "Profile" },
   { to: "/dashboard/home-setup", icon: House, label: "Home setup" },
+  { to: "/dashboard/sos", icon: Siren, label: "SOS" },
 ];
 
 export function Sidebar() {

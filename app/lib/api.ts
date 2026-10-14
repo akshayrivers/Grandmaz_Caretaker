@@ -16,6 +16,7 @@ import type {
   InvitationPreview,
   Role,
   Snapshot,
+  SosEvent,
   User,
 } from "./types";
 
@@ -288,4 +289,10 @@ export const api = {
       body: config,
       headers: { "If-Match": String(version) },
     }),
+
+  getDeviceSos: (deviceId: string) =>
+    request<SosEvent[]>(`/api/sos/device/${enc(deviceId)}`),
+
+  acknowledgeSos: (eventId: string) =>
+    request<SosEvent>(`/api/sos/${enc(eventId)}/ack`, { method: "POST" }),
 };

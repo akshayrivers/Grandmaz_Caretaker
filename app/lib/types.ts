@@ -150,6 +150,18 @@ export interface HelpRequest {
   updatedAt: string;
 }
 
+export interface SosEvent {
+  id: string;
+  deviceId: string;
+  status: "active" | "acknowledged" | "cancelled";
+  latitude: number | null;
+  longitude: number | null;
+  accuracyM: number | null;
+  createdAt: string;
+  updatedAt: string;
+  acknowledgedAt: string | null;
+}
+
 export interface AuditLog {
   id: string;
   deviceId: string | null;
