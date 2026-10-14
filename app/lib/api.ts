@@ -295,4 +295,13 @@ export const api = {
 
   acknowledgeSos: (eventId: string) =>
     request<SosEvent>(`/api/sos/${enc(eventId)}/ack`, { method: "POST" }),
+
+  uploadDeviceMedia: (
+    deviceId: string,
+    body: { kind: "photo" | "audio"; contentType: string; dataBase64: string; durationMs?: number },
+  ) =>
+    request<{ assetId: string }>(`/api/devices/${enc(deviceId)}/media`, {
+      method: "POST",
+      body,
+    }),
 };

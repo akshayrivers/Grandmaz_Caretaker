@@ -10,6 +10,32 @@ function newId(prefix: string) {
   return `${prefix}${Date.now().toString(36)}${rand}`;
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      resolve(text.slice(text.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function clipDurationMs(blob: Blob): Promise<number> {
+  return new Promise((resolve) => {
+    const audio = document.createElement("audio");
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+      const ms = Math.round(audio.duration * 1000);
+      URL.revokeObjectURL(audio.src);
+      resolve(Number.isFinite(ms) && ms > 0 ? Math.min(ms, 30_000) : 1_000);
+    };
+    audio.onerror = () => resolve(1_000);
+    audio.src = URL.createObjectURL(blob);
+  });
+}
+
 export default function HomeSetupPage() {
   const { devices, loading: devicesLoading, error: devicesError } = useMyDevices();
   const [deviceId, setDeviceId] = useState("");
@@ -56,6 +82,93 @@ export default function HomeSetupPage() {
 
   const update = (patch: (current: DeviceConfig) => DeviceConfig) => {
     setConfig((current) => (current ? patch(current) : current));
+  };
+
+  const attachClip = async (file: Blob, index: number) => {
+    if (!deviceId) return;
+    setError(null);
+    try {
+      const mime = (file.type || "audio/webm").split(";")[0] || "audio/webm";
+      const uploaded = await api.uploadDeviceMedia(deviceId, {
+        kind: "audio",
+        contentType: mime,
+        dataBase64: await blobToBase64(file),
+        durationMs: await clipDurationMs(file),
+      });
+      update((current) => ({
+        ...current,
+        contacts: current.contacts.map((item, i) => i === index ? { ...item, nameClipId: uploaded.assetId } : item),
+      }));
+      setNotice("Name clip uploaded. Save the home setup so the phone keeps it.");
+    } catch (err) {
+      setError(describeError(err, "Couldn't upload the clip."));
+    }
+  };
+
+  const recordName = async (index: number) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      const done = new Promise<Blob>((resolve) => {
+        rec.onstop = () => {
+          stream.getTracks().forEach((track) => track.stop());
+          resolve(new Blob(chunks, { type: rec.mimeType || "audio/webm" }));
+        };
+      });
+      rec.start();
+      window.setTimeout(() => {
+        if (rec.state !== "inactive") rec.stop();
+      }, 4_000);
+      await attachClip(await done, index);
+    } catch (err) {
+      setError(describeError(err, "Couldn't record. Allow the microphone and try again."));
+    }
+  };
+
+  const recordButton = async (slot: string) => {
+    if (!deviceId) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      const blob = await new Promise<Blob>((resolve) => {
+        rec.onstop = () => {
+          stream.getTracks().forEach((track) => track.stop());
+          resolve(new Blob(chunks, { type: rec.mimeType || "audio/webm" }));
+        };
+        rec.start();
+        window.setTimeout(() => {
+          if (rec.state !== "inactive") rec.stop();
+        }, 4_000);
+      });
+      const mime = (blob.type || "audio/webm").split(";")[0] || "audio/webm";
+      const uploaded = await api.uploadDeviceMedia(deviceId, {
+        kind: "audio",
+        contentType: mime,
+        dataBase64: await blobToBase64(blob),
+        durationMs: await clipDurationMs(blob),
+      });
+      update((current) => ({
+        ...current,
+        voice: {
+          ...current.voice,
+          clips: [
+            ...current.voice.clips.filter((clip) => clip.slot !== slot),
+            { id: newId("clip"), slot, assetId: uploaded.assetId },
+          ],
+        },
+      }));
+      setNotice("Button clip uploaded. Save the home setup so the phone keeps it.");
+    } catch (err) {
+      setError(describeError(err, "Couldn't record the button clip."));
+    }
   };
 
   const pinnedCount = config?.contacts.filter((contact) => contact.pinned).length ?? 0;
@@ -303,23 +416,52 @@ export default function HomeSetupPage() {
                   </div>
                 ))}
                 {canWrite && (
-                  <button
-                    type="button"
-                    className="text-sm text-blue-700"
-                    onClick={() => update((current) => ({
-                      ...current,
-                      contacts: current.contacts.map((item, i) => i === index ? {
-                        ...item,
-                        phones: [...item.phones, { id: newId("p"), label: "", e164: "", whatsapp: false, isDefault: item.phones.length === 0 }],
-                      } : item),
-                    }))}
-                  >
-                    Add number
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      className="text-sm text-blue-700"
+                      onClick={() => update((current) => ({
+                        ...current,
+                        contacts: current.contacts.map((item, i) => i === index ? {
+                          ...item,
+                          phones: [...item.phones, { id: newId("p"), label: "", e164: "", whatsapp: false, isDefault: item.phones.length === 0 }],
+                        } : item),
+                      }))}
+                    >
+                      Add number
+                    </button>
+                    <label className="text-sm text-blue-700">
+                      Upload name clip
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void attachClip(file, index);
+                        }}
+                      />
+                    </label>
+                    <button type="button" className="text-sm text-blue-700" onClick={() => void recordName(index)}>
+                      Record 4s
+                    </button>
+                    <span className="text-xs text-gray-500">
+                      {contact.nameClipId ? "Clip saved — save the home setup to keep it" : "No name clip yet"}
+                    </span>
+                  </div>
                 )}
               </div>
             ))}
           </section>
+
+          {canWrite && (
+            <section className="space-y-2 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+              <h2 className="font-semibold">Button voice</h2>
+              <button type="button" className="text-sm text-blue-700" onClick={() => void recordButton("home")}>
+                Record the home button (4 seconds)
+              </button>
+            </section>
+          )}
 
           {canWrite && (
             <button
