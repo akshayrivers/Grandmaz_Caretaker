@@ -85,3 +85,10 @@ This template comes with [Tailwind CSS](https://tailwindcss.com/) already config
 ---
 
 Built with ❤️ using React Router.
+
+## Install and push
+
+The app is an installable PWA (`public/manifest.webmanifest` and `public/sw.js`).
+
+Web push is not wired. It needs `VITE_FIREBASE_VAPID_KEY` from the Firebase Cloud Messaging web configuration, plus the existing public `VITE_FIREBASE_*` values and `VITE_API_BASE_URL`. Do not invent those keys. Until `VITE_FIREBASE_VAPID_KEY` is set, the app only registers the service worker and does not request a push token.
+

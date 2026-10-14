@@ -8,10 +8,13 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import { useEffect } from "react";
 import { AuthProvider } from "~/contexts/auth";
+import { registerCaretakerShell } from "~/lib/pwa";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
+  { rel: "manifest", href: "/manifest.webmanifest" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",
@@ -25,11 +28,15 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    registerCaretakerShell();
+  }, []);
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#B7651D" />
         <title>Grandma's Caretaker</title>
         <Meta />
         <Links />
