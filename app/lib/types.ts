@@ -162,6 +162,14 @@ export interface SosEvent {
   acknowledgedAt: string | null;
 }
 
+export interface ReminderEvent {
+  id: string;
+  deviceId: string;
+  reminderId: string;
+  status: "taken" | "snoozed" | "missed";
+  occurredAt: string;
+}
+
 export interface AuditLog {
   id: string;
   deviceId: string | null;

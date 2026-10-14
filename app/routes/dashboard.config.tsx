@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, describeError } from "~/lib/api";
-import { E164_REGEX, canSendCommands, type Caretaker, type DeviceConfig, type DeviceConfigRecord } from "~/lib/types";
+import { E164_REGEX, canSendCommands, type Caretaker, type DeviceConfig, type DeviceConfigRecord, type ReminderEvent } from "~/lib/types";
 import { useMyDevices } from "~/lib/use-devices";
 import { ErrorBanner } from "~/components/error-banner";
 import { LoadingSpinner } from "~/components/loading-spinner";
@@ -47,6 +47,7 @@ export default function HomeSetupPage() {
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [reminderLog, setReminderLog] = useState<ReminderEvent[]>([]);
 
   const selected = devices.find((device) => device.deviceId === deviceId);
   const canWrite = canSendCommands(selected?.role);
@@ -61,13 +62,15 @@ export default function HomeSetupPage() {
     setConflict(false);
     setNotice(null);
     try {
-      const [next, people] = await Promise.all([
+      const [next, people, log] = await Promise.all([
         api.getDeviceConfig(id),
         api.getDeviceCaretakers(id),
+        api.getReminderEvents(id),
       ]);
       setRecord(next);
       setConfig(structuredClone(next.config));
       setCaretakers(people);
+      setReminderLog(log);
     } catch (err) {
       setError(describeError(err, "Couldn't load the phone's home settings."));
     } finally {
@@ -452,6 +455,77 @@ export default function HomeSetupPage() {
                 )}
               </div>
             ))}
+          </section>
+
+          <section className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">Medicine reminders</h2>
+              {canWrite && (
+                <button
+                  type="button"
+                  className="rounded-md bg-gray-900 px-3 py-2 text-sm text-white"
+                  onClick={() => update((current) => ({
+                    ...current,
+                    reminders: [...current.reminders, {
+                      id: newId("med"),
+                      label: "Medicine",
+                      hour: 8,
+                      minute: 0,
+                      days: [0, 1, 2, 3, 4, 5, 6],
+                      enabled: true,
+                    }],
+                  }))}
+                >
+                  Add reminder
+                </button>
+              )}
+            </div>
+            {config.reminders.map((reminder, index) => (
+              <div key={reminder.id} className="flex flex-wrap items-center gap-2">
+                <input
+                  className="min-w-32 flex-1 rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+                  disabled={!canWrite}
+                  value={reminder.label}
+                  onChange={(event) => update((current) => ({
+                    ...current,
+                    reminders: current.reminders.map((item, i) => i === index ? { ...item, label: event.target.value } : item),
+                  }))}
+                />
+                <input
+                  className="w-16 rounded-md border border-gray-300 px-2 py-2 dark:border-gray-700 dark:bg-gray-900"
+                  disabled={!canWrite}
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={reminder.hour}
+                  onChange={(event) => update((current) => ({
+                    ...current,
+                    reminders: current.reminders.map((item, i) => i === index ? { ...item, hour: Number(event.target.value) } : item),
+                  }))}
+                />
+                <input
+                  className="w-16 rounded-md border border-gray-300 px-2 py-2 dark:border-gray-700 dark:bg-gray-900"
+                  disabled={!canWrite}
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={reminder.minute}
+                  onChange={(event) => update((current) => ({
+                    ...current,
+                    reminders: current.reminders.map((item, i) => i === index ? { ...item, minute: Number(event.target.value) } : item),
+                  }))}
+                />
+              </div>
+            ))}
+            <h3 className="pt-2 text-sm font-semibold">Recent log</h3>
+            {reminderLog.length === 0 && <p className="text-sm text-gray-500">No reminder reports yet.</p>}
+            <ul className="space-y-1 text-sm">
+              {reminderLog.map((event) => (
+                <li key={event.id}>
+                  {event.occurredAt.slice(0, 16).replace("T", " ")} — {event.reminderId} — {event.status}
+                </li>
+              ))}
+            </ul>
           </section>
 
           {canWrite && (

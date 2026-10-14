@@ -17,6 +17,7 @@ import type {
   Role,
   Snapshot,
   SosEvent,
+  ReminderEvent,
   User,
 } from "./types";
 
@@ -295,6 +296,9 @@ export const api = {
 
   acknowledgeSos: (eventId: string) =>
     request<SosEvent>(`/api/sos/${enc(eventId)}/ack`, { method: "POST" }),
+
+  getReminderEvents: (deviceId: string) =>
+    request<ReminderEvent[]>(`/api/devices/${enc(deviceId)}/reminder-events`),
 
   uploadDeviceMedia: (
     deviceId: string,
