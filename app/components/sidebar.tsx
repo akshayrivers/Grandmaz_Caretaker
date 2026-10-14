@@ -5,6 +5,7 @@ import {
   AlertCircle,
   ScrollText,
   UserRound,
+  House,
   LogOut,
   ChevronLeft,
   Menu,
@@ -18,6 +19,7 @@ const navItems = [
   { to: "/dashboard/help", icon: AlertCircle, label: "Help Requests" },
   { to: "/dashboard/audit", icon: ScrollText, label: "Audit Logs" },
   { to: "/dashboard/profile", icon: UserRound, label: "Profile" },
+  { to: "/dashboard/home-setup", icon: House, label: "Home setup" },
 ];
 
 export function Sidebar() {

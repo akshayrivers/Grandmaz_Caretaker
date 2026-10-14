@@ -161,6 +161,54 @@ export interface AuditLog {
 
 export const E164_REGEX = /^\+[1-9]\d{6,14}$/;
 
+export interface ContactPhone {
+  id: string;
+  label: string;
+  e164: string;
+  whatsapp: boolean;
+  isDefault: boolean;
+}
+
+export interface DeviceContact {
+  id: string;
+  name: string;
+  phones: ContactPhone[];
+  order: number;
+  pinned: boolean;
+  photoAssetId: string | null;
+  nameClipId: string | null;
+}
+
+export interface DeviceConfig {
+  locale: string;
+  contacts: DeviceContact[];
+  emergency: { primaryCaretakerUserId: string | null; smsFallback: boolean };
+  home: {
+    pinnedContactIds: string[];
+    weather: { mode: "city" | "location"; city: string | null; lat: number | null; lon: number | null };
+    inactivityReturnSec: number;
+  };
+  reminders: Array<{
+    id: string;
+    label: string;
+    hour: number;
+    minute: number;
+    days: number[];
+    enabled: boolean;
+  }>;
+  voice: { clips: Array<{ id: string; slot: string; assetId: string | null }>; ttsRate: number };
+  apps: { visible: string[] };
+}
+
+export interface DeviceConfigRecord {
+  deviceId: string;
+  version: number;
+  config: DeviceConfig;
+  updatedByUserId: string | null;
+  updatedByDeviceId: string | null;
+  updatedAt: string | null;
+}
+
 export function canSendCommands(role: Role | undefined) {
   return role === "primary" || role === "caretaker";
 }

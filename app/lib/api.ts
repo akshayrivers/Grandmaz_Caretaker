@@ -7,6 +7,8 @@ import type {
   CommandRecord,
   CommandStatus,
   CreatedInvitation,
+  DeviceConfig,
+  DeviceConfigRecord,
   DeviceSummary,
   HelpRequest,
   HelpRequestStatus,
@@ -43,6 +45,7 @@ interface RequestOptions {
   body?: unknown;
   /** Send the signed-in user's Firebase ID token. Defaults to true. */
   auth?: boolean;
+  headers?: Record<string, string>;
 }
 
 async function currentIdToken(forceRefresh: boolean): Promise<string> {
@@ -60,6 +63,7 @@ async function send(
 ): Promise<Response> {
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  if (options.headers) Object.assign(headers, options.headers);
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   try {
@@ -147,8 +151,8 @@ export function describeError(err: unknown, fallback = "Something went wrong."):
         return "Sign in with the email address this invitation was sent to.";
       case "EMAIL_NOT_VERIFIED":
         return "Verify your email address before accepting this invitation.";
-      case "CARETAKER_NOT_FOUND":
-        return "That caretaker is not linked to this device.";
+      case "CONFIG_VERSION_CONFLICT":
+        return "Someone else saved the phone settings. Reload and try again.";
     }
     if (err.status === 401) return "Your session has expired. Please sign in again.";
     if (err.status === 403) return "You don't have access to this.";
@@ -274,4 +278,14 @@ export const api = {
   // Audit logs
   getDeviceAuditLogs: (deviceId: string) =>
     request<AuditLog[]>(`/api/audit-logs/device/${enc(deviceId)}`),
+
+  getDeviceConfig: (deviceId: string) =>
+    request<DeviceConfigRecord>(`/api/devices/${enc(deviceId)}/config`),
+
+  putDeviceConfig: (deviceId: string, version: number, config: DeviceConfig) =>
+    request<DeviceConfigRecord>(`/api/devices/${enc(deviceId)}/config`, {
+      method: "PUT",
+      body: config,
+      headers: { "If-Match": String(version) },
+    }),
 };
