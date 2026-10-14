@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, describeError } from "~/lib/api";
 import { useMyDevices } from "~/lib/use-devices";
-import type { HelpRequest, HelpRequestStatus } from "~/lib/types";
+import { canSendCommands, type HelpRequest, type HelpRequestStatus } from "~/lib/types";
 import { StatusBadge } from "~/components/status-badge";
 import { ErrorBanner } from "~/components/error-banner";
 import { LoadingSpinner } from "~/components/loading-spinner";
@@ -134,7 +134,9 @@ export default function HelpPage() {
                     </div>
                   </div>
 
-                  {req.status !== "resolved" && req.status !== "cancelled" && (
+                  {canSendCommands(devices.find((d) => d.deviceId === req.deviceId)?.role) &&
+                    req.status !== "resolved" &&
+                    req.status !== "cancelled" && (
                     <div className="flex gap-1">
                       {req.status === "pending" && (
                         <button
