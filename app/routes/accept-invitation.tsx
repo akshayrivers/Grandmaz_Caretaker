@@ -1,20 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "~/contexts/auth";
-import { api, ApiError } from "~/lib/api";
-import type { Invitation } from "~/lib/types";
+import { api, describeError } from "~/lib/api";
+import type { InvitationPreview } from "~/lib/types";
 import { LoadingSpinner } from "~/components/loading-spinner";
-import { CheckCircle, XCircle, Mail, LogOut, RefreshCw } from "lucide-react";
-
-function saveDeviceLink(deviceId: string, role: string, displayName?: string) {
-  const existing = JSON.parse(
-    localStorage.getItem("linked_devices") || "[]",
-  ) as Array<{ deviceId: string; displayName: string; role: string }>;
-  if (!existing.some((d) => d.deviceId === deviceId)) {
-    existing.push({ deviceId, displayName: displayName || deviceId, role });
-    localStorage.setItem("linked_devices", JSON.stringify(existing));
-  }
-}
+import { ErrorBanner } from "~/components/error-banner";
+import { CheckCircle, XCircle, Mail, LogOut } from "lucide-react";
 
 export default function AcceptInvitation() {
   const [searchParams] = useSearchParams();
@@ -22,91 +13,45 @@ export default function AcceptInvitation() {
   const navigate = useNavigate();
   const { firebaseUser, signInWithGoogle, signOut, refreshUser } = useAuth();
 
-  const [invitation, setInvitation] = useState<Invitation | null>(null);
+  const [invitation, setInvitation] = useState<InvitationPreview | null>(null);
   const [fetching, setFetching] = useState(true);
+  const [pairingCode, setPairingCode] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const acceptedRef = useRef(false);
 
   useEffect(() => {
     if (!token) {
-      setError("No invitation token provided.");
+      setError("This link is missing an invitation token.");
       setFetching(false);
       return;
     }
     api
-      .getInvitation(token)
-      .then((inv) => {
-        setInvitation(inv);
-      })
-      .catch((err: unknown) => {
-        const message =
-          err instanceof Error ? err.message : "Failed to load invitation";
-        setError(message);
-      })
+      .previewInvitation(token)
+      .then(setInvitation)
+      .catch((err: unknown) => setError(describeError(err, "Couldn't load this invitation.")))
       .finally(() => setFetching(false));
   }, [token]);
 
-  useEffect(() => {
-    if (!firebaseUser || !token || acceptedRef.current || accepting || success || error) return;
+  const emailMismatch =
+    invitation?.email &&
+    firebaseUser?.email &&
+    invitation.email.toLowerCase() !== firebaseUser.email.toLowerCase();
 
-    // Email match check before sending accept
-    if (invitation?.email && firebaseUser.email) {
-      if (invitation.email.toLowerCase().trim() !== firebaseUser.email.toLowerCase().trim()) {
-        setError(
-          `This invitation was sent to ${invitation.email}, but you are currently signed in as ${firebaseUser.email}. Please switch accounts to accept.`
-        );
-        return;
-      }
-    }
-
-    // Invitation already accepted (e.g. after a prior retry) — no need to hit
-    // the accept endpoint again, just refresh and head to the dashboard.
-    if (invitation?.accepted) {
-      acceptedRef.current = true;
+  const handleAccept = async () => {
+    if (!token || pairingCode.length !== 6) return;
+    setAccepting(true);
+    setError(null);
+    try {
+      await api.acceptInvitation(token, pairingCode);
+      await refreshUser();
       setSuccess(true);
       setTimeout(() => navigate("/dashboard", { replace: true }), 1200);
-      return;
+    } catch (err: unknown) {
+      setError(describeError(err, "Couldn't accept this invitation."));
+    } finally {
+      setAccepting(false);
     }
-
-    acceptedRef.current = true;
-    setAccepting(true);
-    (async () => {
-      try {
-        const idToken = await firebaseUser.getIdToken(true);
-        const result = await api.acceptInvitation(idToken, token);
-        if (result.deviceId) {
-          saveDeviceLink(result.deviceId, "primary", invitation?.deviceId);
-        }
-        await refreshUser();
-        setSuccess(true);
-        setTimeout(() => navigate("/dashboard", { replace: true }), 1200);
-      } catch (err: unknown) {
-        let message = "Failed to accept invitation";
-        if (err instanceof ApiError) {
-          message = err.message;
-        } else if (err instanceof Error) {
-          message = err.message;
-        }
-        setError(message);
-        setAccepting(false);
-      }
-    })();
-  }, [firebaseUser, token, invitation, accepting, success, error, navigate, refreshUser]);
-
-  const handleRetry = () => {
-    acceptedRef.current = false;
-    setError(null);
-    setAccepting(false);
-  };
-
-  const handleSwitchAccount = async () => {
-    await signOut();
-    acceptedRef.current = false;
-    setError(null);
-    setAccepting(false);
-    await signInWithGoogle();
   };
 
   if (fetching) return <LoadingSpinner message="Loading invitation..." />;
@@ -116,9 +61,7 @@ export default function AcceptInvitation() {
       <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="text-center">
           <XCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Invalid Link
-          </h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Invalid link</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             No invitation token was provided.
           </p>
@@ -132,104 +75,94 @@ export default function AcceptInvitation() {
       <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="w-full max-w-sm rounded-xl border border-green-200 bg-white p-8 text-center shadow-sm dark:border-green-900/50 dark:bg-gray-900">
           <CheckCircle className="mx-auto mb-4 h-12 w-12 text-green-500" />
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-            You're in!
-          </h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">You're linked</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Redirecting to your dashboard...
+            Opening your dashboard...
           </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="w-full max-w-md rounded-xl border border-red-200 bg-white p-8 text-center shadow-sm dark:border-red-900/50 dark:bg-gray-900">
-          <XCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Unable to Accept Invitation
-          </h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            {error}
-          </p>
-          
-          <div className="mt-6 flex flex-col gap-2">
-            {firebaseUser && (
-              <button
-                onClick={handleSwitchAccount}
-                className="flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-              >
-                <LogOut size={16} /> Switch Google Account
-              </button>
-            )}
-            <button
-              onClick={handleRetry}
-              className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-            >
-              <RefreshCw size={16} /> Try Again
-            </button>
-            <button
-              onClick={() => navigate(firebaseUser ? "/dashboard" : "/")}
-              className="mt-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-            >
-              {firebaseUser ? "Go to Dashboard" : "Go Home"}
-            </button>
-          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
-      <div className="w-full max-w-sm space-y-6 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-950">
+      <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <Mail className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            You're Invited!
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">You're invited</h1>
           {invitation && (
-            <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 text-left dark:border-gray-800 dark:bg-gray-900">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Email:{" "}
+                Device:{" "}
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {invitation.email}
+                  {invitation.deviceName}
                 </span>
               </p>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Device:{" "}
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {invitation.deviceId}
-                </span>
+                Sent to:{" "}
+                <span className="font-medium text-gray-900 dark:text-white">{invitation.email}</span>
               </p>
             </div>
           )}
         </div>
 
-        {accepting ? (
-          <LoadingSpinner message="Accepting invitation..." />
-        ) : !firebaseUser ? (
+        <ErrorBanner message={error} />
+
+        {!firebaseUser ? (
           <button
-            onClick={() => signInWithGoogle()}
-            className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            onClick={() => signInWithGoogle().catch((err: unknown) => setError(describeError(err)))}
+            className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
           >
-            <svg className="h-5 w-5" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-            </svg>
-            Sign in with Google to Accept
+            Sign in with Google
           </button>
-        ) : null}
+        ) : emailMismatch ? (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              You're signed in as {firebaseUser.email}. This invitation was sent to {invitation?.email}.
+            </p>
+            <button
+              onClick={() => signOut().then(() => signInWithGoogle())}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-gray-900"
+            >
+              <LogOut size={16} /> Switch account
+            </button>
+          </div>
+        ) : (
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleAccept();
+            }}
+          >
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Pairing code shown on grandma's phone
+              <input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                pattern="\d{6}"
+                value={pairingCode}
+                onChange={(e) => setPairingCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-3 text-center font-mono text-2xl tracking-[0.4em] dark:border-gray-700 dark:bg-gray-800"
+                placeholder="000000"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={accepting || pairingCode.length !== 6}
+              className="w-full rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900"
+            >
+              {accepting ? "Linking..." : "Link this device"}
+            </button>
+          </form>
+        )}
 
         <button
           onClick={() => navigate(firebaseUser ? "/dashboard" : "/")}
-          className="w-full text-center text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+          className="w-full text-center text-sm text-gray-500 hover:text-gray-700"
         >
-          {firebaseUser ? "Go to Dashboard" : "Back to home"}
+          {firebaseUser ? "Go to dashboard" : "Back to home"}
         </button>
       </div>
     </div>

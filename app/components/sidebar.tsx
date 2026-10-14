@@ -1,9 +1,10 @@
-import { NavLink, useLocation } from "react-router";
+import { NavLink } from "react-router";
 import {
   Monitor,
   Terminal,
   AlertCircle,
   ScrollText,
+  UserRound,
   LogOut,
   ChevronLeft,
   Menu,
@@ -16,12 +17,12 @@ const navItems = [
   { to: "/dashboard/commands", icon: Terminal, label: "Commands" },
   { to: "/dashboard/help", icon: AlertCircle, label: "Help Requests" },
   { to: "/dashboard/audit", icon: ScrollText, label: "Audit Logs" },
+  { to: "/dashboard/profile", icon: UserRound, label: "Profile" },
 ];
 
 export function Sidebar() {
   const { user, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const location = useLocation();
 
   return (
     <aside

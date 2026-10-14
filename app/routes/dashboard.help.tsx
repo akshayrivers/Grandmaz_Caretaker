@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "~/contexts/auth";
-import { api } from "~/lib/api";
-import type { HelpRequest } from "~/lib/types";
+import { api, describeError } from "~/lib/api";
+import { useMyDevices } from "~/lib/use-devices";
+import { canSendCommands, type HelpRequest, type HelpRequestStatus } from "~/lib/types";
 import { StatusBadge } from "~/components/status-badge";
+import { ErrorBanner } from "~/components/error-banner";
 import { LoadingSpinner } from "~/components/loading-spinner";
 import { AlertCircle, CheckCircle, Clock, Stethoscope, Wrench } from "lucide-react";
 
@@ -14,77 +15,52 @@ const typeIcons: Record<string, typeof AlertCircle> = {
 };
 
 export default function HelpPage() {
-  const { idToken } = useAuth();
+  const { devices, loading: devicesLoading, error: devicesError } = useMyDevices();
   const [requests, setRequests] = useState<HelpRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("");
 
   useEffect(() => {
-    loadHelpRequests();
-  }, [idToken]);
+    if (devicesLoading) return;
+    void loadHelpRequests();
+  }, [devicesLoading, devices]);
 
   async function loadHelpRequests() {
-    if (!idToken) return;
     setLoading(true);
+    setError(null);
     try {
-      let deviceIds: string[] = [];
-
-      try {
-        const backendDevices = await api.getMyDevices(idToken);
-        if (backendDevices && backendDevices.length > 0) {
-          deviceIds = backendDevices.map((d) => d.deviceId || d.id);
-          const toStore = backendDevices.map((d) => ({
-            deviceId: d.deviceId || d.id,
-            displayName: d.displayName || d.deviceId,
-            role: d.caretakerRole || "primary",
-          }));
-          localStorage.setItem("linked_devices", JSON.stringify(toStore));
-        }
-      } catch {}
-
-      if (deviceIds.length === 0) {
-        const stored = JSON.parse(
-          localStorage.getItem("linked_devices") || "[]",
-        ) as Array<{ deviceId: string }>;
-        deviceIds = stored.map((d) => d.deviceId);
-      }
-
-      const all: HelpRequest[] = [];
-      for (const id of deviceIds) {
-        try {
-          const reqs = await api.getDeviceHelpRequests(idToken, id);
-          all.push(...reqs);
-        } catch {}
-      }
-      all.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      const lists = await Promise.all(
+        devices.map((d) => api.getDeviceHelpRequests(d.deviceId).catch(() => [] as HelpRequest[])),
       );
+      const all = lists.flat();
+      all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setRequests(all);
-    } catch {
+    } catch (err) {
+      setError(describeError(err, "Couldn't load help requests."));
     } finally {
       setLoading(false);
     }
   }
 
-  const handleResolve = async (id: string, status: string) => {
-    if (!idToken) return;
+  const handleResolve = async (id: string, status: HelpRequestStatus) => {
     try {
-      await api.resolveHelpRequest(idToken, id, status);
-      setRequests((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, status } : r)),
-      );
-    } catch {}
+      const updated = await api.resolveHelpRequest(id, status);
+      setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    } catch (err) {
+      setError(describeError(err, "Couldn't update that request."));
+    }
   };
 
   const filtered = filter
     ? requests.filter((r) => r.status === filter || r.type === filter)
     : requests;
 
-  if (loading) return <LoadingSpinner message="Loading help requests..." />;
+  if (devicesLoading || loading) return <LoadingSpinner message="Loading help requests..." />;
 
   return (
     <div className="space-y-6">
+      <ErrorBanner message={devicesError || error} />
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           Help Requests
@@ -158,7 +134,9 @@ export default function HelpPage() {
                     </div>
                   </div>
 
-                  {req.status !== "resolved" && req.status !== "cancelled" && (
+                  {canSendCommands(devices.find((d) => d.deviceId === req.deviceId)?.role) &&
+                    req.status !== "resolved" &&
+                    req.status !== "cancelled" && (
                     <div className="flex gap-1">
                       {req.status === "pending" && (
                         <button
@@ -185,7 +163,7 @@ export default function HelpPage() {
                 </div>
 
                 <p className="mt-3 text-xs text-gray-400">
-                  {new Date(req.created_at).toLocaleString()}
+                  {new Date(req.createdAt).toLocaleString()}
                 </p>
               </div>
             );

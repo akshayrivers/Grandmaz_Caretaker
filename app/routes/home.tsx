@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "~/contexts/auth";
+import { describeError } from "~/lib/api";
+import { ErrorBanner } from "~/components/error-banner";
 import { LoadingSpinner } from "~/components/loading-spinner";
 
 export default function Home() {
@@ -35,16 +37,32 @@ export default function Home() {
 
 function LoginCard() {
   const { signInWithGoogle, loading } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handleSignIn = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      setError(describeError(err, "Google sign-in failed. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-      <p className="mb-6 text-center text-sm text-gray-600 dark:text-gray-400">
+    <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <p className="text-center text-sm text-gray-600 dark:text-gray-400">
         Sign in to access your dashboard
       </p>
 
+      <ErrorBanner message={error} />
+
       <button
-        onClick={signInWithGoogle}
-        disabled={loading}
+        onClick={() => void handleSignIn()}
+        disabled={loading || busy}
         className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -65,10 +83,10 @@ function LoginCard() {
             fill="#EA4335"
           />
         </svg>
-        Continue with Google
+        {busy ? "Signing in..." : "Continue with Google"}
       </button>
 
-      <p className="mt-6 text-center text-xs text-gray-500 dark:text-gray-500">
+      <p className="text-center text-xs text-gray-500">
         Only invited caretakers can access this dashboard
       </p>
     </div>

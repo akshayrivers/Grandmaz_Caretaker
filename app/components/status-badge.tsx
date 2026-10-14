@@ -14,8 +14,12 @@ const variants: Record<string, string> = {
   active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   inactive: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
   primary: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400",
-  secondary: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400",
-  admin: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+  caretaker: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400",
+  viewer: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+  expired: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+  revoked: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+  locked: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  accepted: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
 };
 
 export function StatusBadge({ status }: { status: string }) {

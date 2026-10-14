@@ -1,67 +1,44 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "~/contexts/auth";
-import { api } from "~/lib/api";
+import { api, describeError } from "~/lib/api";
+import { useMyDevices } from "~/lib/use-devices";
 import type { AuditLog } from "~/lib/types";
+import { ErrorBanner } from "~/components/error-banner";
 import { LoadingSpinner } from "~/components/loading-spinner";
 import { ScrollText } from "lucide-react";
 
 export default function AuditPage() {
-  const { idToken } = useAuth();
+  const { devices, loading: devicesLoading, error: devicesError } = useMyDevices();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadLogs();
-  }, [idToken]);
+    if (devicesLoading) return;
+    void loadLogs();
+  }, [devicesLoading, devices]);
 
   async function loadLogs() {
-    if (!idToken) return;
     setLoading(true);
+    setError(null);
     try {
-      let deviceIds: string[] = [];
-
-      try {
-        const backendDevices = await api.getMyDevices(idToken);
-        if (backendDevices && backendDevices.length > 0) {
-          deviceIds = backendDevices.map((d) => d.deviceId || d.id);
-          const toStore = backendDevices.map((d) => ({
-            deviceId: d.deviceId || d.id,
-            displayName: d.displayName || d.deviceId,
-            role: d.caretakerRole || "primary",
-          }));
-          localStorage.setItem("linked_devices", JSON.stringify(toStore));
-        }
-      } catch {}
-
-      if (deviceIds.length === 0) {
-        const stored = JSON.parse(
-          localStorage.getItem("linked_devices") || "[]",
-        ) as Array<{ deviceId: string }>;
-        deviceIds = stored.map((d) => d.deviceId);
-      }
-
-      const all: AuditLog[] = [];
-      for (const id of deviceIds) {
-        try {
-          const l = await api.getDeviceAuditLogs(idToken, id);
-          all.push(...l);
-        } catch {}
-      }
-      all.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      const lists = await Promise.all(
+        devices.map((d) => api.getDeviceAuditLogs(d.deviceId).catch(() => [] as AuditLog[])),
       );
+      const all = lists.flat();
+      all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setLogs(all);
-    } catch {
+    } catch (err) {
+      setError(describeError(err, "Couldn't load audit logs."));
     } finally {
       setLoading(false);
     }
   }
 
-  if (loading) return <LoadingSpinner message="Loading audit logs..." />;
+  if (devicesLoading || loading) return <LoadingSpinner message="Loading audit logs..." />;
 
   return (
     <div className="space-y-6">
+      <ErrorBanner message={devicesError || error} />
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           Audit Logs
@@ -121,13 +98,13 @@ export default function AuditPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                    {log.user_id ?? "System"}
+                    {log.userId ?? "System"}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">
-                    {log.ip_address ?? "-"}
+                    —
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">
-                    {new Date(log.created_at).toLocaleString()}
+                    {new Date(log.createdAt).toLocaleString()}
                   </td>
                 </tr>
               ))}

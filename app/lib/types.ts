@@ -1,110 +1,166 @@
+// Mirrors the Phase 0 backend contract. All fields are camelCase; `deviceId` in
+// records is always the string device id (not the UUID).
+
+export type Role = "primary" | "caretaker" | "viewer";
+
 export interface User {
   id: string;
-  firebase_uid: string;
   email: string;
   name: string | null;
-  avatar_url: string | null;
-  role: string;
-  created_at: string;
-  updated_at: string;
+  avatarUrl: string | null;
+  phoneE164: string | null;
+  emailVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface Device {
-  id: string;
-  device_id: string;
-  public_key: string;
-  device_metadata: Record<string, unknown> | null;
-  is_verified: boolean;
-  status: string;
-  last_active_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DeviceCaretaker {
-  id: string;
-  caretaker_id: string;
-  device_id: string;
-  role: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  caretaker?: User;
-}
-
-export interface Task {
-  id: string;
-  device_id: string;
-  created_by: string;
-  title: string;
-  command: string;
-  description: string | null;
-  payload: Record<string, unknown> | null;
-  status: string;
-  result: Record<string, unknown> | null;
-  scheduled_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface HelpRequest {
-  id: string;
-  device_id: string;
-  title: string;
-  description: string | null;
-  type: "general" | "sos" | "medical" | "tech_support";
-  status: string;
-  resolved_by: string | null;
-  resolved_at: string | null;
-  created_at: string;
-}
-
-export interface AuditLog {
-  id: string;
-  device_id: string | null;
-  user_id: string | null;
-  action: string;
-  details: Record<string, unknown> | null;
-  ip_address: string | null;
-  created_at: string;
-}
-
-export interface DeviceStateSnapshot {
-  id: string;
-  device_id: string;
-  battery_level: number | null;
-  battery_status: string | null;
-  wifi_ssid: string | null;
-  storage_free_mb: number | null;
-  installed_apps: unknown;
-  settings: Record<string, unknown> | null;
-  snapshot_data: Record<string, unknown> | null;
-  created_at: string;
-}
-
-export interface Invitation {
-  valid: boolean;
-  email: string;
-  deviceId: string;
-  expiresAt: string;
-  accepted?: boolean;
-}
-
-export interface DeviceWithState {
+export interface DeviceSummary {
   id: string;
   deviceId: string;
-  deviceUuid?: string;
-  displayName: string;
-  publicKey?: string;
-  deviceMetadata?: Record<string, unknown> | null;
+  displayName: string | null;
   isVerified: boolean;
   status: string;
   lastActiveAt: string | null;
   batteryLevel: number | null;
   batteryStatus: string | null;
   wifiSsid: string | null;
-  caretakerRole: string;
-  createdAt?: string;
-  updatedAt?: string;
+  role: Role;
+  deviceMetadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface Caretaker {
+  caretakerId: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  phoneE164: string | null;
+  role: Role;
+  status: string;
+  linkedAt: string;
+  isMe: boolean;
+}
+
+export type InvitationStatus =
+  | "pending"
+  | "accepted"
+  | "expired"
+  | "revoked"
+  | "locked";
+
+export interface InvitationPreview {
+  email: string;
+  deviceName: string;
+  role: Role;
+  status: InvitationStatus;
+  expiresAt: string;
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: Role;
+  status: InvitationStatus;
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+}
+
+export interface CreatedInvitation {
+  invitationId: string;
+  email: string;
+  role: Role;
+  pairingCode: string;
+  expiresAt: string;
+}
+
+export interface AcceptInvitationResult {
+  deviceId: string;
+  role: Role;
+}
+
+export type Command =
+  | { type: "ring_device" }
+  | { type: "sync_now" }
+  | { type: "report_location" }
+  | { type: "show_message"; text: string; voiceClipId?: string }
+  | { type: "set_volume"; level: number }
+  | { type: "update_emergency_number"; e164: string };
+
+export type CommandType = Command["type"];
+
+export type CommandStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "expired"
+  | "cancelled";
+
+export interface CommandResult {
+  success: boolean;
+  message: string;
+  [key: string]: unknown;
+}
+
+export interface CommandRecord {
+  id: string;
+  deviceId: string;
+  type: CommandType;
+  payload: Record<string, unknown>;
+  status: CommandStatus;
+  result: CommandResult | null;
+  createdBy: string | null;
+  createdAt: string;
+  deliveredAt: string | null;
+  completedAt: string | null;
+  expiresAt: string;
+}
+
+export interface Snapshot {
+  id: string;
+  deviceId: string;
+  batteryLevel: number | null;
+  batteryStatus: string | null;
+  wifiSsid: string | null;
+  storageFreeMb: number | null;
+  installedApps: unknown;
+  settings: Record<string, unknown> | null;
+  snapshotData: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export type HelpRequestType = "general" | "sos" | "medical" | "tech_support";
+export type HelpRequestStatus =
+  | "pending"
+  | "in_progress"
+  | "resolved"
+  | "cancelled";
+
+export interface HelpRequest {
+  id: string;
+  deviceId: string;
+  title: string;
+  description: string | null;
+  type: HelpRequestType;
+  status: HelpRequestStatus;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  deviceId: string | null;
+  userId: string | null;
+  action: string;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export const E164_REGEX = /^\+[1-9]\d{6,14}$/;
+
+export function canSendCommands(role: Role | undefined) {
+  return role === "primary" || role === "caretaker";
 }

@@ -12,15 +12,17 @@ import {
   signOut as firebaseSignOut,
   type User as FirebaseUser,
 } from "firebase/auth";
-import { auth, googleProvider } from "~/lib/firebase";
-import { api } from "~/lib/api";
+import { createGoogleProvider, getFirebaseAuth, isBrowser } from "~/lib/firebase";
+import { api, describeError } from "~/lib/api";
 import type { User } from "~/lib/types";
 
 interface AuthState {
   firebaseUser: FirebaseUser | null;
   user: User | null;
+  /** True once Firebase has a signed-in user. API calls fetch their own ID token. */
   idToken: string | null;
   loading: boolean;
+  error: string | null;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -33,11 +35,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const syncUser = useCallback(async (fbUser: FirebaseUser | null) => {
     if (!fbUser) {
       setUser(null);
       setIdToken(null);
+      setError(null);
       setLoading(false);
       return;
     }
@@ -45,37 +49,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = await fbUser.getIdToken();
       setIdToken(token);
-      try {
-        const profile = await api.verify(token);
-        setUser(profile);
-      } catch {
-        setUser(null);
-      }
+      const profile = await api.verify();
+      setUser(profile);
+      setError(null);
     } catch (err) {
-      console.error("Failed to get ID token:", err);
       setUser(null);
+      setError(describeError(err, "Couldn't finish signing you in."));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+    if (!isBrowser) return;
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (fbUser) => {
       setFirebaseUser(fbUser);
-      syncUser(fbUser);
+      void syncUser(fbUser);
     });
     return unsubscribe;
   }, [syncUser]);
 
   const signInWithGoogle = async () => {
-    await signInWithPopup(auth, googleProvider);
+    setError(null);
+    await signInWithPopup(getFirebaseAuth(), createGoogleProvider());
   };
 
   const signOut = async () => {
-    await firebaseSignOut(auth);
+    await firebaseSignOut(getFirebaseAuth());
     setUser(null);
     setIdToken(null);
     setFirebaseUser(null);
+    setError(null);
   };
 
   const refreshUser = async () => {
@@ -83,14 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = await firebaseUser.getIdToken(true);
       setIdToken(token);
-      try {
-        const profile = await api.verify(token);
-        setUser(profile);
-      } catch {
-        setUser(null);
-      }
-    } catch {
-      // token refresh failed
+      const profile = await api.verify();
+      setUser(profile);
+      setError(null);
+    } catch (err) {
+      setError(describeError(err, "Couldn't refresh your profile."));
     }
   };
 
@@ -101,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         idToken,
         loading,
+        error,
         signInWithGoogle,
         signOut,
         refreshUser,
