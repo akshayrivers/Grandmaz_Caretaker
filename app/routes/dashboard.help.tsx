@@ -29,18 +29,22 @@ export default function HelpPage() {
   async function loadHelpRequests() {
     setLoading(true);
     setError(null);
-    try {
-      const lists = await Promise.all(
-        devices.map((d) => api.getDeviceHelpRequests(d.deviceId).catch(() => [] as HelpRequest[])),
-      );
-      const all = lists.flat();
-      all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setRequests(all);
-    } catch (err) {
-      setError(describeError(err, "Couldn't load help requests."));
-    } finally {
-      setLoading(false);
-    }
+    const failures: string[] = [];
+    const lists = await Promise.all(
+      devices.map(async (d) => {
+        try {
+          return await api.getDeviceHelpRequests(d.deviceId);
+        } catch (err) {
+          failures.push(describeError(err, "Couldn't load help requests."));
+          return [] as HelpRequest[];
+        }
+      }),
+    );
+    const all = lists.flat();
+    all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    setRequests(all);
+    if (failures.length > 0) setError(failures[0] ?? null);
+    setLoading(false);
   }
 
   const handleResolve = async (id: string, status: HelpRequestStatus) => {
@@ -88,7 +92,7 @@ export default function HelpPage() {
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center dark:border-gray-700">
-          <CheckCircle className="mx-auto mb-4 h-12 w-12 text-gray-300 dark:text-gray-600" />
+          <CheckCircle aria-hidden="true" className="mx-auto mb-4 h-12 w-12 text-gray-300 dark:text-gray-600" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">
             All clear
           </h3>
@@ -116,7 +120,7 @@ export default function HelpPage() {
                             : "bg-gray-100 text-gray-600 dark:bg-gray-800"
                       }`}
                     >
-                      <Icon size={16} />
+                      <Icon size={16} aria-hidden="true" />
                     </div>
                     <div>
                       <h4 className="font-medium text-gray-900 dark:text-white">
@@ -131,6 +135,9 @@ export default function HelpPage() {
                           {req.description}
                         </p>
                       )}
+                      <p className="mt-1 text-xs text-gray-500">
+                        {devices.find((d) => d.deviceId === req.deviceId)?.displayName || req.deviceId}
+                      </p>
                     </div>
                   </div>
 

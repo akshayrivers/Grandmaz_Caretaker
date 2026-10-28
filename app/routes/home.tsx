@@ -6,14 +6,14 @@ import { ErrorBanner } from "~/components/error-banner";
 import { LoadingSpinner } from "~/components/loading-spinner";
 
 export default function Home() {
-  const { firebaseUser, loading } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && firebaseUser) {
+    if (!loading && user) {
       navigate("/dashboard", { replace: true });
     }
-  }, [firebaseUser, loading, navigate]);
+  }, [user, loading, navigate]);
 
   if (loading) return <LoadingSpinner />;
 
@@ -36,15 +36,17 @@ export default function Home() {
 }
 
 function LoginCard() {
-  const { signInWithGoogle, loading } = useAuth();
+  const { signInWithGoogle, signInLocal, loading } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const localFlow = import.meta.env.DEV && import.meta.env.VITE_LOCAL_FLOW === "1";
 
   const handleSignIn = async () => {
     setError(null);
     setBusy(true);
     try {
-      await signInWithGoogle();
+      if (localFlow) await signInLocal();
+      else await signInWithGoogle();
     } catch (err) {
       setError(describeError(err, "Google sign-in failed. Please try again."));
     } finally {
@@ -61,11 +63,13 @@ function LoginCard() {
       <ErrorBanner message={error} />
 
       <button
+        type="button"
         onClick={() => void handleSignIn()}
         disabled={loading || busy}
         className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
       >
-        <svg className="h-5 w-5" viewBox="0 0 24 24">
+        {!localFlow && (
+        <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
           <path
             d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
             fill="#4285F4"
@@ -83,7 +87,8 @@ function LoginCard() {
             fill="#EA4335"
           />
         </svg>
-        {busy ? "Signing in..." : "Continue with Google"}
+        )}
+        {busy ? "Signing in..." : localFlow ? "Continue on this laptop" : "Continue with Google"}
       </button>
 
       <p className="text-center text-xs text-gray-500">

@@ -5,6 +5,11 @@
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 html,
 body {
   @apply bg-white text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100;

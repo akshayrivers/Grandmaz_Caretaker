@@ -24,6 +24,7 @@ const FILTERS: Array<"" | CommandStatus> = [
   "completed",
   "failed",
   "expired",
+  "cancelled",
 ];
 
 function commandLabel(cmd: CommandRecord) {
@@ -140,6 +141,7 @@ export default function CommandsPage() {
         ) : (
           <div className="space-y-3">
             <select
+              aria-label="Device"
               value={deviceId}
               onChange={(e) => setDeviceId(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
@@ -168,6 +170,7 @@ export default function CommandsPage() {
             </div>
             {type === "show_message" && (
               <input
+                aria-label="Message shown on the phone"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Message shown on the phone"
@@ -189,6 +192,7 @@ export default function CommandsPage() {
             )}
             {type === "update_emergency_number" && (
               <input
+                aria-label="Emergency phone number"
                 value={e164}
                 onChange={(e) => setE164(e.target.value)}
                 placeholder="+919876543210"

@@ -7,10 +7,15 @@ import type {
   Caretaker,
   CommandRecord,
   CreatedInvitation,
+  DeviceConfig,
+  DeviceConfigRecord,
   HelpRequest,
+  HelpRequestStatus,
+  Invitation,
   Role,
   Snapshot,
 } from "~/lib/types";
+import { DEFAULT_GEMINI_MODEL, canSendCommands } from "~/lib/types";
 import { StatusBadge } from "~/components/status-badge";
 import { ErrorBanner } from "~/components/error-banner";
 import { LoadingSpinner } from "~/components/loading-spinner";
@@ -23,16 +28,18 @@ import {
   Terminal,
   AlertCircle,
   ScrollText,
+  Mic,
   Clock,
   Send,
   X,
 } from "lucide-react";
 
-type Tab = "state" | "caretakers" | "commands" | "help" | "audit";
+type Tab = "state" | "assistant" | "caretakers" | "commands" | "help" | "audit";
 
 export default function DeviceDetail() {
   const { deviceId } = useParams();
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, user } = useAuth();
+  const signedIn = Boolean(firebaseUser) || Boolean(user);
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("state");
   const [myRole, setMyRole] = useState<Role | null>(null);
@@ -45,9 +52,9 @@ export default function DeviceDetail() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!firebaseUser || !deviceId) return;
+    if (!signedIn || !deviceId) return;
     void loadAll();
-  }, [firebaseUser, deviceId]);
+  }, [signedIn, deviceId]);
 
   async function loadAll() {
     if (!deviceId) return;
@@ -79,6 +86,7 @@ export default function DeviceDetail() {
 
   const tabs: { key: Tab; label: string; icon: typeof Users; count?: number }[] = [
     { key: "state", label: "State", icon: Battery },
+    { key: "assistant", label: "Assistant", icon: Mic },
     { key: "caretakers", label: "Caretakers", icon: Users, count: caretakers.length },
     { key: "commands", label: "Commands", icon: Terminal, count: commands.length },
     {
@@ -121,6 +129,9 @@ export default function DeviceDetail() {
         ))}
       </div>
       {tab === "state" && <StateTab state={state} />}
+      {tab === "assistant" && deviceId && (
+        <AssistantTab deviceId={deviceId} canWrite={canSendCommands(myRole ?? "viewer")} />
+      )}
       {tab === "caretakers" && deviceId && (
         <CaretakersTab
           caretakers={caretakers}
@@ -130,9 +141,107 @@ export default function DeviceDetail() {
         />
       )}
       {tab === "commands" && <CommandsTab commands={commands} />}
-      {tab === "help" && <HelpTab requests={helpRequests} />}
+      {tab === "help" && (
+        <HelpTab
+          requests={helpRequests}
+          canResolve={canSendCommands(myRole ?? "viewer")}
+          onResolve={async (id, status) => {
+            try {
+              const updated = await api.resolveHelpRequest(id, status);
+              setHelpRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
+            } catch (err) {
+              setError(describeError(err, "Couldn't update that request."));
+            }
+          }}
+        />
+      )}
       {tab === "audit" && <AuditTab logs={auditLogs} />}
     </div>
+  );
+}
+
+
+function AssistantTab({ deviceId, canWrite }: { deviceId: string; canWrite: boolean }) {
+  const [record, setRecord] = useState<DeviceConfigRecord | null>(null);
+  const [config, setConfig] = useState<DeviceConfig | null>(null);
+  const [model, setModel] = useState(DEFAULT_GEMINI_MODEL);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getDeviceConfig(deviceId).then((loaded) => {
+      if (cancelled) return;
+      setRecord(loaded);
+      setConfig(loaded.config);
+      setModel(loaded.config.voice.model?.trim() || DEFAULT_GEMINI_MODEL);
+    }).catch((err) => {
+      if (!cancelled) setProblem(describeError(err, "Couldn't load the assistant model."));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [deviceId]);
+
+  async function save() {
+    const nextModel = model.trim().replace(/^models\//, "");
+    if (!nextModel || !config || !record) {
+      setProblem("Enter a model id.");
+      return;
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(nextModel)) {
+      setProblem("Enter a model id such as gemini-3.8-flash.");
+      return;
+    }
+    setSaving(true);
+    setProblem(null);
+    setNotice(null);
+    try {
+      const saved = await api.putDeviceConfig(deviceId, record.version, {
+        ...config,
+        voice: { ...config.voice, model: nextModel },
+      });
+      setRecord(saved);
+      setConfig(saved.config);
+      setModel(saved.config.voice.model);
+      setNotice(`Saved ${saved.config.voice.model} as version ${saved.version}.`);
+    } catch (err) {
+      setProblem(describeError(err, "Couldn't save the model."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="max-w-xl space-y-3 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Gemini model</h2>
+      <p className="text-sm text-gray-500">
+        The phone uses this model id when she asks. The Gemini key stays on the server.
+      </p>
+      <ErrorBanner message={problem} />
+      {notice && <p className="text-sm text-gray-700 dark:text-gray-300">{notice}</p>}
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="gemini-model">
+        Model id
+      </label>
+      <input
+        id="gemini-model"
+        value={model}
+        disabled={!canWrite || saving}
+        onChange={(event) => setModel(event.target.value)}
+        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+      />
+      {canWrite && (
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving || !config}
+          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+        >
+          {saving ? "Saving…" : "Save model"}
+        </button>
+      )}
+    </section>
   );
 }
 
@@ -182,6 +291,22 @@ function CaretakersTab({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedInvitation | null>(null);
+  const [pending, setPending] = useState<Invitation[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getDeviceInvitations(deviceId)
+      .then((rows) => {
+        if (!cancelled) setPending(rows.filter((row) => row.status === "pending"));
+      })
+      .catch(() => {
+        if (!cancelled) setPending([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [deviceId, caretakers]);
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -210,19 +335,25 @@ function CaretakersTab({
               const invite = await api.createInvitation(deviceId, { email, role });
               setCreated(invite);
               setEmail("");
-              setMessage(`Invitation sent to ${invite.email}. Pairing code: ${invite.pairingCode}`);
+              setMessage(
+                invite.acceptPath
+                  ? `Invitation saved for ${invite.email}. Email was not sent. Open ${invite.acceptPath} and use pairing code ${invite.pairingCode}.`
+                  : `Invitation sent to ${invite.email}. Pairing code: ${invite.pairingCode}`,
+              );
             });
           }}
         >
           <input
             type="email"
             required
+            aria-label="Caretaker email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="caretaker@example.com"
             className="min-w-56 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
           />
           <select
+            aria-label="Role"
             value={role}
             onChange={(e) => setRole(e.target.value as "caretaker" | "viewer")}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
@@ -239,6 +370,16 @@ function CaretakersTab({
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
           Tell them this pairing code, shown once: <span className="font-mono text-lg">{created.pairingCode}</span>
         </p>
+      )}
+      {pending.length > 0 && (
+        <div className="rounded-lg border border-dashed border-gray-300 p-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+          <p className="font-medium text-gray-900 dark:text-white">Pending invitations</p>
+          {pending.map((invite) => (
+            <p key={invite.id} className="mt-1">
+              {invite.email} · {invite.role} · {invite.status}
+            </p>
+          ))}
+        </div>
       )}
       {caretakers.map((c) => (
         <div key={c.caretakerId} className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
@@ -301,15 +442,55 @@ function CommandsTab({ commands }: { commands: CommandRecord[] }) {
   );
 }
 
-function HelpTab({ requests }: { requests: HelpRequest[] }) {
+function HelpTab({
+  requests,
+  canResolve,
+  onResolve,
+}: {
+  requests: HelpRequest[];
+  canResolve: boolean;
+  onResolve: (id: string, status: HelpRequestStatus) => Promise<void>;
+}) {
   if (requests.length === 0) return <p className="text-sm text-gray-500">No help requests.</p>;
   return (
     <div className="space-y-2">
       {requests.map((r) => (
         <div key={r.id} className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-          <div className="flex items-start justify-between">
-            <h4 className="font-medium text-gray-900 dark:text-white">{r.title}</h4>
-            <StatusBadge status={r.status} />
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h4 className="font-medium text-gray-900 dark:text-white">{r.title}</h4>
+              <div className="mt-1 flex gap-2">
+                <StatusBadge status={r.type} />
+                <StatusBadge status={r.status} />
+              </div>
+            </div>
+            {canResolve && r.status !== "resolved" && r.status !== "cancelled" && (
+              <div className="flex gap-1">
+                {r.status === "pending" && (
+                  <button
+                    type="button"
+                    onClick={() => void onResolve(r.id, "in_progress")}
+                    className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700"
+                  >
+                    In progress
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void onResolve(r.id, "resolved")}
+                  className="rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700"
+                >
+                  Resolve
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onResolve(r.id, "cancelled")}
+                  className="rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
           {r.description && <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{r.description}</p>}
           <p className="mt-2 text-xs text-gray-400">{new Date(r.createdAt).toLocaleString()}</p>

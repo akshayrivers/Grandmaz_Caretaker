@@ -51,6 +51,10 @@ interface RequestOptions {
 }
 
 async function currentIdToken(forceRefresh: boolean): Promise<string> {
+  if (import.meta.env.DEV && import.meta.env.VITE_LOCAL_FLOW === "1") {
+    const local = await import("./local-flow");
+    if (local.localSessionActive()) return local.LOCAL_CARETAKER_TOKEN;
+  }
   const user = getFirebaseAuth().currentUser;
   if (!user) {
     throw new ApiError("You are not signed in.", 401, "NOT_SIGNED_IN");

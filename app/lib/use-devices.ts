@@ -4,13 +4,14 @@ import { api, describeError } from "~/lib/api";
 import type { DeviceSummary } from "~/lib/types";
 
 export function useMyDevices() {
-  const { firebaseUser, loading: authLoading } = useAuth();
+  const { firebaseUser, user, loading: authLoading } = useAuth();
+  const signedIn = Boolean(firebaseUser) || Boolean(user);
   const [devices, setDevices] = useState<DeviceSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    if (!firebaseUser) {
+    if (!signedIn) {
       setDevices([]);
       setLoading(false);
       return;
@@ -24,7 +25,7 @@ export function useMyDevices() {
     } finally {
       setLoading(false);
     }
-  }, [firebaseUser]);
+  }, [signedIn]);
 
   useEffect(() => {
     if (authLoading) return;

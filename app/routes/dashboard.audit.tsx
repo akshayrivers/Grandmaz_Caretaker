@@ -21,12 +21,21 @@ export default function AuditPage() {
     setLoading(true);
     setError(null);
     try {
+      const failures: string[] = [];
       const lists = await Promise.all(
-        devices.map((d) => api.getDeviceAuditLogs(d.deviceId).catch(() => [] as AuditLog[])),
+        devices.map(async (d) => {
+          try {
+            return await api.getDeviceAuditLogs(d.deviceId);
+          } catch (err) {
+            failures.push(describeError(err, "Couldn't load audit logs."));
+            return [] as AuditLog[];
+          }
+        }),
       );
       const all = lists.flat();
       all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setLogs(all);
+      if (failures.length > 0) setError(failures[0] ?? null);
     } catch (err) {
       setError(describeError(err, "Couldn't load audit logs."));
     } finally {
@@ -73,9 +82,6 @@ export default function AuditPage() {
                   User
                 </th>
                 <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">
-                  IP
-                </th>
-                <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">
                   Time
                 </th>
               </tr>
@@ -99,9 +105,6 @@ export default function AuditPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                     {log.userId ?? "System"}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">
-                    —
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">
                     {new Date(log.createdAt).toLocaleString()}

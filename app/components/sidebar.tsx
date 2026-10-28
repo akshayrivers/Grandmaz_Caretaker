@@ -41,10 +41,13 @@ export function Sidebar() {
           </span>
         )}
         <button
+          type="button"
           onClick={() => setCollapsed(!collapsed)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="rounded-md p-1.5 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800"
         >
-          {collapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
+          {collapsed ? <Menu size={18} aria-hidden="true" /> : <ChevronLeft size={18} aria-hidden="true" />}
         </button>
       </div>
 
@@ -54,6 +57,7 @@ export function Sidebar() {
             key={item.to}
             to={item.to}
             end={item.end}
+            aria-label={item.label}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
@@ -62,7 +66,7 @@ export function Sidebar() {
               } ${collapsed ? "justify-center" : ""}`
             }
           >
-            <item.icon size={18} />
+            <item.icon size={18} aria-hidden="true" />
             {!collapsed && <span>{item.label}</span>}
           </NavLink>
         ))}
@@ -75,12 +79,14 @@ export function Sidebar() {
           </div>
         )}
         <button
+          type="button"
           onClick={signOut}
+          aria-label="Sign out"
           className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800 ${
             collapsed ? "justify-center" : ""
           }`}
         >
-          <LogOut size={18} />
+          <LogOut size={18} aria-hidden="true" />
           {!collapsed && <span>Sign Out</span>}
         </button>
       </div>

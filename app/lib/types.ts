@@ -72,6 +72,8 @@ export interface CreatedInvitation {
   role: Role;
   pairingCode: string;
   expiresAt: string;
+  /** Present only when the invitation email was not delivered. */
+  acceptPath?: string;
 }
 
 export interface AcceptInvitationResult {
@@ -216,7 +218,7 @@ export interface DeviceConfig {
     days: number[];
     enabled: boolean;
   }>;
-  voice: { clips: Array<{ id: string; slot: string; assetId: string | null }>; ttsRate: number };
+  voice: { clips: Array<{ id: string; slot: string; assetId: string | null }>; ttsRate: number; model: string };
   apps: { visible: string[] };
 }
 
@@ -232,3 +234,5 @@ export interface DeviceConfigRecord {
 export function canSendCommands(role: Role | undefined) {
   return role === "primary" || role === "caretaker";
 }
+
+export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";

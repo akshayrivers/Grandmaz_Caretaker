@@ -38,7 +38,7 @@ export default function DashboardHome() {
               <div className="mb-4 flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
-                    <Monitor size={20} className="text-gray-600 dark:text-gray-400" />
+                    <Monitor size={20} aria-hidden="true" className="text-gray-600 dark:text-gray-400" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900 dark:text-white">
@@ -52,7 +52,7 @@ export default function DashboardHome() {
               <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                 {device.batteryLevel !== null && (
                   <div className="flex items-center gap-2">
-                    <Battery size={14} />
+                    <Battery size={14} aria-hidden="true" />
                     <span>
                       {device.batteryLevel}%{device.batteryStatus ? ` (${device.batteryStatus})` : ""}
                     </span>
@@ -60,13 +60,13 @@ export default function DashboardHome() {
                 )}
                 {device.wifiSsid && (
                   <div className="flex items-center gap-2">
-                    <Wifi size={14} />
+                    <Wifi size={14} aria-hidden="true" />
                     <span>{device.wifiSsid}</span>
                   </div>
                 )}
                 {device.lastActiveAt && (
                   <div className="flex items-center gap-2">
-                    <Clock size={14} />
+                    <Clock size={14} aria-hidden="true" />
                     <span>Last active: {new Date(device.lastActiveAt).toLocaleString()}</span>
                   </div>
                 )}

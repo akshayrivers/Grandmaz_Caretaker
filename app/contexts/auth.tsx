@@ -16,6 +16,8 @@ import { createGoogleProvider, getFirebaseAuth, isBrowser } from "~/lib/firebase
 import { api, describeError } from "~/lib/api";
 import type { User } from "~/lib/types";
 
+const localFlowBuild = import.meta.env.DEV && import.meta.env.VITE_LOCAL_FLOW === "1";
+
 interface AuthState {
   firebaseUser: FirebaseUser | null;
   user: User | null;
@@ -24,6 +26,7 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   signInWithGoogle: () => Promise<void>;
+  signInLocal: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -60,14 +63,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const signInLocal = useCallback(async () => {
+    if (!localFlowBuild) {
+      throw new Error("Local sign-in is not available");
+    }
+    const local = await import("~/lib/local-flow");
+    local.markLocalSession();
+    setError(null);
+    setLoading(true);
+    try {
+      const profile = await api.verify();
+      setIdToken(local.LOCAL_CARETAKER_TOKEN);
+      setUser(profile);
+      setFirebaseUser(null);
+    } catch (err) {
+      local.clearLocalSession();
+      setUser(null);
+      setIdToken(null);
+      setError(describeError(err, "Couldn't finish signing you in."));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isBrowser) return;
+    if (localFlowBuild) {
+      void (async () => {
+        const local = await import("~/lib/local-flow");
+        if (local.localSessionActive()) {
+          await signInLocal();
+        } else {
+          setLoading(false);
+        }
+      })();
+      return;
+    }
     const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (fbUser) => {
       setFirebaseUser(fbUser);
       void syncUser(fbUser);
     });
     return unsubscribe;
-  }, [syncUser]);
+  }, [syncUser, signInLocal]);
 
   const signInWithGoogle = async () => {
     setError(null);
@@ -75,7 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await firebaseSignOut(getFirebaseAuth());
+    if (localFlowBuild) {
+      const local = await import("~/lib/local-flow");
+      local.clearLocalSession();
+    } else {
+      await firebaseSignOut(getFirebaseAuth());
+    }
     setUser(null);
     setIdToken(null);
     setFirebaseUser(null);
@@ -83,6 +125,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshUser = async () => {
+    if (localFlowBuild) {
+      try {
+        const profile = await api.verify();
+        setUser(profile);
+        setError(null);
+      } catch (err) {
+        setError(describeError(err, "Couldn't refresh your profile."));
+      }
+      return;
+    }
     if (!firebaseUser) return;
     try {
       const token = await firebaseUser.getIdToken(true);
@@ -104,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         signInWithGoogle,
+        signInLocal,
         signOut,
         refreshUser,
       }}
