@@ -1,6 +1,6 @@
 # Grandma's Caretaker
 
-Web app for adult family caretakers. It watches and configures the Android phone that runs [Grandma's Launcher](../sys-launcher). Grandma does not use this site. She cannot read, and the launcher on her phone is built around photos, colour, and the clock. A helper types a caretaker's email on that phone. The caretaker signs in here, on their own phone or computer, with Google.
+Web app for adult family caretakers. It watches and configures the Android phone that runs Grandma's Launcher (`../sys-launcher` on a local checkout). Grandma does not use this site. She cannot read, and the launcher on her phone is built around photos, colour, and the clock. A helper types a caretaker's email on that phone. The caretaker signs in here, on their own phone or computer, with Google.
 
 This repository is the caretaker app. It is open source now. An installable app with push notifications, and any Play Store listing, come later.
 
